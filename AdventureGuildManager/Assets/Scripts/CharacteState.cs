@@ -5,9 +5,8 @@ using UnityEngine.AI;
 public class CharacteState : MonoBehaviour
 {
     private NavMeshAgent CharacterNavmeshAgent;
-    private bool WasRandomWanderDestinationGenerated = false;
-    private bool WasPremadeTargetDestinationPicked = false;
-    private Vector3 CharacterNextDestination;
+    private Vector3 CharacterNextRandomDestination;
+    private Vector3 CharacterNextPremadeDestination;
     
 
     public CharacterStates CurrentCharacterState = CharacterStates.Idle;
@@ -24,22 +23,18 @@ public class CharacteState : MonoBehaviour
 
     private void OnDrawGizmos()
     {
-        if (CurrentCharacterState == CharacterStates.Wander)
-        {
-            Gizmos.color = Color.yellow;
-            Gizmos.DrawSphere(CharacterNextDestination, 1f);
-        }
+        Gizmos.color = Color.yellow;
+        Gizmos.DrawSphere(CharacterNextRandomDestination, 1f);
 
-        if (CurrentCharacterState == CharacterStates.WalkTowards)
-        {
-            Gizmos.color = Color.red;
-            Gizmos.DrawSphere(CharacterNextDestination, 1f);
-        }
+        Gizmos.color = Color.red;
+        Gizmos.DrawSphere(CharacterNextPremadeDestination, 1f);
     }
 
     private void Start()
     {
         CharacterNavmeshAgent = GetComponent<NavMeshAgent>();
+        GenerateNewRandomDestination();
+        PickPremadeTargetPosition();
     }
 
     void Update()
@@ -68,8 +63,7 @@ public class CharacteState : MonoBehaviour
 
     public void IdleStateBehaviour()
     {
-        WasRandomWanderDestinationGenerated = false;
-        WasPremadeTargetDestinationPicked = false;
+
     }
 
     #endregion
@@ -78,15 +72,10 @@ public class CharacteState : MonoBehaviour
 
     public void WanderStateBehaviour()
     {
-        if (!WasRandomWanderDestinationGenerated)
-        {
-            GenerateNewRandomDestination();
-            WasRandomWanderDestinationGenerated = true;
-        }
-        MoveTo();
+        MoveToRandom();
         if (IsDestinationReached())
         {
-            CurrentCharacterState = CharacterStates.Idle;
+            GenerateNewRandomDestination();
         }
     }
 
@@ -96,7 +85,7 @@ public class CharacteState : MonoBehaviour
         randomDirection += transform.position;
         NavMeshHit hit;
         NavMesh.SamplePosition(randomDirection, out hit, MaxWanderDistance, 1);
-        CharacterNextDestination = LerpTowardsMiddleOfTheBoard(hit.position);
+        CharacterNextRandomDestination = LerpTowardsMiddleOfTheBoard(hit.position);
     }
 
     private Vector3 LerpTowardsMiddleOfTheBoard(Vector3 TargetPosition)
@@ -105,28 +94,35 @@ public class CharacteState : MonoBehaviour
         return Vector3.Lerp(Vector3.zero, TargetPosition, CenterWeight);
     }
 
+
+    private void MoveToRandom()
+    {
+        CharacterNavmeshAgent.destination = CharacterNextRandomDestination;
+    }
+
     #endregion
 
     #region WalkTowards
     public void WalkTowardsStateBehaviour()
     {
-        if (!WasPremadeTargetDestinationPicked)
-        {
-            PickPremadeTargetPosition();
-            WasPremadeTargetDestinationPicked = true;
-        }
-        MoveTo();
+        MoveToPremade();
         if (IsDestinationReached())
         {
-            CurrentCharacterState = CharacterStates.Idle;
+            PickPremadeTargetPosition();
         }
     }
 
     public void PickPremadeTargetPosition()
     {
         int RandomTargetIndex = Random.Range(0, PremadeTargetPositions.Length);
-        CharacterNextDestination = PremadeTargetPositions[RandomTargetIndex].transform.position;
+        CharacterNextPremadeDestination = PremadeTargetPositions[RandomTargetIndex].transform.position;
     }
+
+    private void MoveToPremade()
+    {
+        CharacterNavmeshAgent.destination = CharacterNextPremadeDestination;
+    }
+
     #endregion
 
     #region Interact
@@ -146,11 +142,6 @@ public class CharacteState : MonoBehaviour
         float dist = CharacterNavmeshAgent.remainingDistance;
 
         return (dist != Mathf.Infinity && CharacterNavmeshAgent.pathStatus != NavMeshPathStatus.PathInvalid && CharacterNavmeshAgent.remainingDistance == 0);
-    }
-
-    private void MoveTo()
-    {
-        CharacterNavmeshAgent.destination = CharacterNextDestination;
     }
 
     #endregion
